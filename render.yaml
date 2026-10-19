@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: nemlog-monitoramento-tempo-real
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: TIMEZONE
+        value: America/Sao_Paulo
+      - key: META_ACCESS_TOKEN
+        sync: false
+      - key: META_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_RECIPIENTS
+        sync: false
+      - key: VUUPT_WEBHOOK_SECRET
+        generateValue: true
+      - key: URGENCY_SLA_MINUTES
+        value: 60
+      - key: UNIT_WAIT_LIMIT_MINUTES
+        value: 10
+      - key: URGENCY_WARNING_MINUTES
+        value: 45
+
