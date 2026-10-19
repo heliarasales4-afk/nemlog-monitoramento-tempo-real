@@ -30,3 +30,41 @@ export async function sendWhatsApp(message) {
   }
   return results;
 }
+
+export async function sendWhatsAppTemplate(name, parameters = [], language = "pt_BR") {
+  if (!config.metaToken || !config.phoneNumberId || config.recipients.length === 0) {
+    console.log("[WhatsApp não configurado]", name, parameters);
+    return { skipped: true };
+  }
+
+  const url = `https://graph.facebook.com/${config.graphVersion}/${config.phoneNumberId}/messages`;
+  const results = [];
+  for (const to of config.recipients) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.metaToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to,
+        type: "template",
+        template: {
+          name,
+          language: { code: language },
+          components: [{
+            type: "body",
+            parameters: parameters.map((value) => ({ type: "text", text: String(value) }))
+          }]
+        }
+      })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(`Meta WhatsApp ${response.status}: ${JSON.stringify(data)}`);
+    console.log("Template WhatsApp enviado:", JSON.stringify({ name, to: to.slice(-4), messageId: data?.messages?.[0]?.id || null }));
+    results.push(data);
+  }
+  return results;
+}

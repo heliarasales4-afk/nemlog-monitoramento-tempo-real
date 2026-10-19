@@ -1,6 +1,6 @@
 import { config } from "./config.js";
 import { normalizeWebhook, searchableText } from "./normalize.js";
-import { sendWhatsApp } from "./whatsapp.js";
+import { sendWhatsApp, sendWhatsAppTemplate } from "./whatsapp.js";
 
 const services = new Map();
 const timers = new Map();
@@ -75,7 +75,16 @@ export async function processVuuptWebhook(body) {
 
   if (service.kind === "urgency" && /ServiceCreatedEvent$/.test(service.event)) {
     const start = service.createdAt ?? new Date();
-    await notify(`🚨 URGÊNCIA ACIONADA\n${label(service)}\nAcionamento: ${formatTime(start)}\nPrazo total: ${config.urgencySlaMinutes} minutos.`);
+    try {
+      const route = [service.origin, service.destination].filter(Boolean).join(" → ") || service.title || service.code || `serviço ${service.id}`;
+      await sendWhatsAppTemplate("alerta_urgencia_nemlog", [
+        service.driver || "Condutor não informado",
+        route,
+        formatTime(start)
+      ]);
+    } catch (error) {
+      console.error("Falha ao enviar modelo de urgência:", error.message);
+    }
     schedule(service.id, "warning", new Date(start.getTime() + config.urgencyWarningMinutes * 60000), async () => {
       const current = services.get(service.id);
       if (!current?.completedAt) await notify(`⚠️ URGÊNCIA PRÓXIMA DO PRAZO\n${label(current)}\n${config.urgencyWarningMinutes} minutos desde o acionamento e ainda não concluída.`);
