@@ -17,6 +17,19 @@ test("normaliza webhook oficial de serviço do Vuupt", () => {
   assert.equal(item.arrivedAt.toISOString(), "2026-10-19T16:04:00.000Z");
 });
 
+test("normaliza entidade enviada diretamente pelo webhook do Vuupt", () => {
+  const service = normalizeWebhook({
+    id: 54230037,
+    title: "Urgência - TESTE - NEMLOG",
+    type: "pickup",
+    created_at: "2026-10-19 15:43:19"
+  });
+
+  assert.equal(service.id, "54230037");
+  assert.equal(service.title, "Urgência - TESTE - NEMLOG");
+  assert.equal(service.createdAt.toISOString(), "2026-10-19T18:43:19.000Z");
+});
+
 test("normaliza checklist vinculado a um serviço", () => {
   const item = normalizeWebhook({
     event: "Vuupt\\Events\\Checklist\\ChecklistFilledEvent",

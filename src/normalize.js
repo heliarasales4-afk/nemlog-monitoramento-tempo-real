@@ -16,7 +16,9 @@ function text(value) {
 
 export function normalizeWebhook(body) {
   const event = text(body?.event);
-  const payload = body?.payload ?? {};
+  // The Vuupt delivery log shows the entity itself as the request body.
+  // Keep supporting the documented envelope as well as this production shape.
+  const payload = body?.payload ?? body ?? {};
   const entity = payload.entity ?? payload.service ?? payload.order ?? payload;
   const agent = entity.agent ?? payload.agent ?? {};
   const title = text(first(entity.title, entity.name, payload.title));

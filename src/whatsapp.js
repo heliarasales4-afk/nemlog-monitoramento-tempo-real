@@ -25,6 +25,7 @@ export async function sendWhatsApp(message) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(`Meta WhatsApp ${response.status}: ${JSON.stringify(data)}`);
+    console.log("WhatsApp enviado:", JSON.stringify({ to: to.slice(-4), messageId: data?.messages?.[0]?.id || null }));
     results.push(data);
   }
   return results;

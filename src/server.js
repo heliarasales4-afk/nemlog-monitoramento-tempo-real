@@ -14,8 +14,17 @@ app.post("/webhooks/vuupt", (req, res) => {
   }
 
   // O Vuupt exige resposta 2XX; o processamento segue de forma assíncrona.
+  const event = req.body?.event
+    || req.get("x-vuupt-event")
+    || req.get("x-event")
+    || req.get("event")
+    || "";
+  const webhook = req.body?.payload ? req.body : { event, payload: req.body };
+
   res.status(202).json({ ok: true });
-  processVuuptWebhook(req.body).catch((error) => console.error("Erro no webhook Vuupt:", error));
+  processVuuptWebhook(webhook)
+    .then((result) => console.log("Webhook Vuupt processado:", JSON.stringify({ event, ...result })))
+    .catch((error) => console.error("Erro no webhook Vuupt:", error));
 });
 
 app.get("/services/:id", (req, res) => {
