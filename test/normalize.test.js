@@ -14,7 +14,7 @@ test("normaliza webhook oficial de serviço do Vuupt", () => {
   });
   assert.equal(item.id, "123");
   assert.equal(item.driver, "Wagner");
-  assert.equal(item.arrivedAt.toISOString(), "2026-10-19T16:04:00.000Z");
+  assert.equal(item.arrivedAt.toISOString(), "2026-10-19T13:04:00.000Z");
 });
 
 test("normaliza entidade enviada diretamente pelo webhook do Vuupt", () => {
@@ -27,7 +27,7 @@ test("normaliza entidade enviada diretamente pelo webhook do Vuupt", () => {
 
   assert.equal(service.id, "54230037");
   assert.equal(service.title, "Urgência - TESTE - NEMLOG");
-  assert.equal(service.createdAt.toISOString(), "2026-10-19T18:43:19.000Z");
+  assert.equal(service.createdAt.toISOString(), "2026-10-19T15:43:19.000Z");
 });
 
 test("normaliza checklist vinculado a um serviço", () => {

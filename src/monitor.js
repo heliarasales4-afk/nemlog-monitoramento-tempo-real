@@ -129,7 +129,7 @@ export async function processVuuptWebhook(body) {
     clearTimers(service.id, ["arrival"]);
   }
 
-  if (/ChecklistFilledEvent$/.test(service.event)) {
+  if (service.kind === "urgency" && /ChecklistFilledEvent$/.test(service.event)) {
     const stage = /coleta/i.test(service.checklistName) ? "coleta" : /entrega/i.test(service.checklistName) ? "entrega" : "outro";
     if (stage !== "outro") {
       service.checklists = { ...(service.checklists || {}), [stage]: true };
@@ -140,7 +140,7 @@ export async function processVuuptWebhook(body) {
     }
   }
 
-  if (/ChecklistFilledEvent$/.test(service.event) && /coleta/i.test(service.checklistName)) {
+  if (service.kind === "urgency" && /ChecklistFilledEvent$/.test(service.event) && /coleta/i.test(service.checklistName)) {
     const pickupDone = service.checklistFilledAt ?? new Date();
     service.pickupDoneAt = pickupDone;
     services.set(service.id, service);

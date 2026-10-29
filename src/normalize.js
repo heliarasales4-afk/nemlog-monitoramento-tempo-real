@@ -3,8 +3,10 @@ const first = (...values) => values.find((value) => value !== undefined && value
 function dateValue(...values) {
   const value = first(...values);
   if (!value) return null;
+  // O webhook do Vuupt envia os horários sem indicar o fuso, mas os valores
+  // são UTC. Marcar como UTC permite exibi-los corretamente em São Paulo.
   const normalized = typeof value === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value)
-    ? value.replace(" ", "T") + "-03:00"
+    ? value.replace(" ", "T") + "Z"
     : value;
   const parsed = new Date(normalized);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
