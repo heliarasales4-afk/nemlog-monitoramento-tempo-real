@@ -96,16 +96,21 @@ export async function processVuuptWebhook(body) {
 
   if (service.kind === "urgency" && /ServiceCreatedEvent$/.test(service.event)) {
     const start = service.createdAt ?? new Date();
-    try {
-      const route = [service.origin, service.destination].filter(Boolean).join(" → ") || service.title || service.code || `serviço ${service.id}`;
-      await sendWhatsAppTemplate("alerta_urgencia_nemlog", [
-        service.driver || "Condutor não informado",
-        route,
-        formatTime(start)
-      ]);
-    } catch (error) {
-      console.error("Falha ao enviar modelo de urgência:", error.message);
-    }
+    // O Vuupt normalmente cria o serviço e o atribui ao agente logo em seguida.
+    // A pequena espera permite incorporar o ServiceAssignedEvent antes do alerta.
+    schedule(service.id, "initial", new Date(Date.now() + 3000), async () => {
+      const current = services.get(service.id) || service;
+      try {
+        const route = [current.origin, current.destination].filter(Boolean).join(" → ") || current.title || current.code || `serviço ${current.id}`;
+        await sendWhatsAppTemplate("alerta_urgencia_nemlog", [
+          current.driver || "Condutor não informado",
+          route,
+          formatTime(current.createdAt || start)
+        ]);
+      } catch (error) {
+        console.error("Falha ao enviar modelo de urgência:", error.message);
+      }
+    });
     schedule(service.id, "arrival", new Date(start.getTime() + config.urgencyArrivalLimitMinutes * 60000), async () => {
       const current = services.get(service.id);
       if (current && !current.arrivedAt && !current.completedAt) {

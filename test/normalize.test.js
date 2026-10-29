@@ -43,3 +43,15 @@ test("normaliza checklist vinculado a um serviço", () => {
   assert.equal(item.id, "456");
   assert.match(item.checklistName, /Coleta/);
 });
+
+test("normaliza agente atribuído em formatos alternativos do Vuupt", () => {
+  const item = normalizeWebhook({
+    event: "Vuupt\\Events\\Service\\ServiceAssignedEvent",
+    payload: {
+      entity_id: 789,
+      assigned_agent: { name: "Heliara Sales Agente" },
+      entity: { id: 789, title: "URGÊNCIA" }
+    }
+  });
+  assert.equal(item.driver, "Heliara Sales Agente");
+});
