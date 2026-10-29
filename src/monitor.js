@@ -21,8 +21,8 @@ export function classify(service) {
 }
 
 function label(service) {
-  const route = [service.origin, service.destination].filter(Boolean).join(" → ");
-  return [service.driver || "condutor não informado", route || service.title || service.code || `serviço ${service.id}`].join(" | ");
+  const route = service.title || [service.origin, service.destination].filter(Boolean).join(" → ");
+  return [service.driver || "condutor não informado", route || service.code || `serviço ${service.id}`].join(" | ");
 }
 
 function clearTimers(id, kinds = ["arrival", "sla"]) {
@@ -101,7 +101,7 @@ export async function processVuuptWebhook(body) {
     schedule(service.id, "initial", new Date(Date.now() + 3000), async () => {
       const current = services.get(service.id) || service;
       try {
-        const route = [current.origin, current.destination].filter(Boolean).join(" → ") || current.title || current.code || `serviço ${current.id}`;
+        const route = current.title || [current.origin, current.destination].filter(Boolean).join(" → ") || current.code || `serviço ${current.id}`;
         await sendWhatsAppTemplate("alerta_urgencia_nemlog", [
           current.driver || "Condutor não informado",
           route,
