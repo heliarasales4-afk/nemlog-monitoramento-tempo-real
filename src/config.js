@@ -18,7 +18,7 @@ export const config = {
   recipients: listEnv("WHATSAPP_RECIPIENTS"),
   webhookSecret: process.env.VUUPT_WEBHOOK_SECRET || "",
   urgencySlaMinutes: numberEnv("URGENCY_SLA_MINUTES", 60),
-  urgencyWarningMinutes: numberEnv("URGENCY_WARNING_MINUTES", 45),
+  urgencyArrivalLimitMinutes: numberEnv("URGENCY_ARRIVAL_LIMIT_MINUTES", 40),
   unitWaitLimitMinutes: numberEnv("UNIT_WAIT_LIMIT_MINUTES", 10),
   urgencyKeywords: listEnv("URGENCY_KEYWORDS", "URGENCIA,URGÊNCIA"),
   ignoreKeywords: listEnv("IGNORE_KEYWORDS", "SEM MATERIAL")

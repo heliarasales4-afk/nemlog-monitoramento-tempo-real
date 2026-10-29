@@ -23,6 +23,6 @@ services:
         value: 60
       - key: UNIT_WAIT_LIMIT_MINUTES
         value: 10
-      - key: URGENCY_WARNING_MINUTES
-        value: 45
+      - key: URGENCY_ARRIVAL_LIMIT_MINUTES
+        value: 40
 
