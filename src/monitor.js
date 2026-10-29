@@ -13,6 +13,11 @@ function containsAny(text, keywords) {
   return keywords.some((keyword) => text.includes(keyword.toUpperCase()));
 }
 
+function isArrivalChecklist(service) {
+  return /ChecklistFilledEvent$/.test(service.event)
+    && /chegada\s+(?:na|à|a)\s+coleta/i.test(service.checklistName || "");
+}
+
 export function classify(service) {
   const haystack = searchableText(service);
   if (containsAny(haystack, config.ignoreKeywords)) return "ignored";
@@ -94,6 +99,15 @@ export async function processVuuptWebhook(body) {
 
   if (service.kind === "ignored") return { ignored: true, reason: "sem material" };
 
+  // No aplicativo do Vuupt, o motorista informa a chegada por meio da
+  // ocorrência/formulário "Chegada na Coleta". Esse preenchimento é o registro
+  // oficial de chegada e precisa cancelar imediatamente o alerta de 40 minutos.
+  if (isArrivalChecklist(service)) {
+    service.arrivedAt = service.checklistFilledAt ?? new Date();
+    services.set(service.id, service);
+    clearTimers(service.id, ["arrival"]);
+  }
+
   if (service.kind === "urgency" && /ServiceCreatedEvent$/.test(service.event)) {
     const start = service.createdAt ?? new Date();
     // O Vuupt normalmente cria o serviço e o atribui ao agente logo em seguida.
@@ -129,7 +143,7 @@ export async function processVuuptWebhook(body) {
     clearTimers(service.id, ["arrival"]);
   }
 
-  if (service.kind === "urgency" && /ChecklistFilledEvent$/.test(service.event)) {
+  if (service.kind === "urgency" && /ChecklistFilledEvent$/.test(service.event) && !isArrivalChecklist(service)) {
     const stage = /coleta/i.test(service.checklistName) ? "coleta" : /entrega/i.test(service.checklistName) ? "entrega" : "outro";
     if (stage !== "outro") {
       service.checklists = { ...(service.checklists || {}), [stage]: true };
@@ -140,7 +154,7 @@ export async function processVuuptWebhook(body) {
     }
   }
 
-  if (service.kind === "urgency" && /ChecklistFilledEvent$/.test(service.event) && /coleta/i.test(service.checklistName)) {
+  if (service.kind === "urgency" && /ChecklistFilledEvent$/.test(service.event) && /coleta/i.test(service.checklistName) && !isArrivalChecklist(service)) {
     const pickupDone = service.checklistFilledAt ?? new Date();
     service.pickupDoneAt = pickupDone;
     services.set(service.id, service);
