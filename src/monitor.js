@@ -1,6 +1,6 @@
 import { config } from "./config.js";
 import { normalizeWebhook, searchableText } from "./normalize.js";
-import { sendWhatsApp, sendWhatsAppTemplate } from "./whatsapp.js";
+import { sendWhatsAppTemplate } from "./whatsapp.js";
 
 const services = new Map();
 const timers = new Map();
@@ -23,11 +23,6 @@ export function classify(service) {
   if (containsAny(haystack, config.ignoreKeywords)) return "ignored";
   if (containsAny(haystack, config.urgencyKeywords)) return "urgency";
   return service.routeId ? "route" : "unknown";
-}
-
-function label(service) {
-  const route = service.title || [service.origin, service.destination].filter(Boolean).join(" → ");
-  return [service.driver || "condutor não informado", route || service.code || `serviço ${service.id}`].join(" | ");
 }
 
 function clearTimers(id, kinds = ["arrival", "sla"]) {
@@ -71,9 +66,15 @@ function schedule(id, kind, when, fn) {
   timers.set(key, timer);
 }
 
-async function notify(text) {
+async function notify(service, type, details) {
   try {
-    await sendWhatsApp(text);
+    const route = service.title || [service.origin, service.destination].filter(Boolean).join(" → ") || service.code || `serviço ${service.id}`;
+    await sendWhatsAppTemplate("alerta_operacional_urgencia", [
+      type,
+      service.driver || "Condutor não informado",
+      route,
+      details
+    ]);
   } catch (error) {
     console.error("Falha ao enviar WhatsApp:", error.message);
   }
@@ -106,6 +107,9 @@ export async function processVuuptWebhook(body) {
     service.arrivedAt = service.checklistFilledAt ?? new Date();
     services.set(service.id, service);
     clearTimers(service.id, ["arrival"]);
+    if (service.kind === "urgency") {
+      await notify(service, "CHEGADA À COLETA REGISTRADA", `Chegada registrada em ${formatTime(service.arrivedAt)}.`);
+    }
   }
 
   if (service.kind === "urgency" && /ServiceCreatedEvent$/.test(service.event)) {
@@ -128,12 +132,12 @@ export async function processVuuptWebhook(body) {
     schedule(service.id, "arrival", new Date(start.getTime() + config.urgencyArrivalLimitMinutes * 60000), async () => {
       const current = services.get(service.id);
       if (current && !current.arrivedAt && !current.completedAt) {
-        await notify(`🟠 CONDUTOR NÃO CHEGOU À COLETA EM 40 MIN\n${label(current)}\nAcionamento: ${formatTime(current.createdAt)}\nApós ${config.urgencyArrivalLimitMinutes} minutos, a chegada à unidade ainda não foi registrada.`);
+        await notify(current, "CONDUTOR NÃO CHEGOU À COLETA EM 40 MIN", `Acionamento: ${formatTime(current.createdAt)}. Após ${config.urgencyArrivalLimitMinutes} minutos, a chegada à unidade ainda não foi registrada.`);
       }
     });
     schedule(service.id, "sla", new Date(start.getTime() + config.urgencySlaMinutes * 60000), async () => {
       const current = services.get(service.id);
-      if (!current?.completedAt) await notify(`🔴 SLA DE URGÊNCIA ATINGIDO\n${label(current)}\nMais de ${config.urgencySlaMinutes} minutos desde o acionamento e ainda não concluída.`);
+      if (!current?.completedAt) await notify(current, "SLA DE URGÊNCIA ATINGIDO", `Mais de ${config.urgencySlaMinutes} minutos desde o acionamento e a urgência ainda não foi concluída.`);
     });
   }
 
@@ -149,7 +153,7 @@ export async function processVuuptWebhook(body) {
       service.checklists = { ...(service.checklists || {}), [stage]: true };
       const missing = missingChecklistItems(service.checklistAnswers);
       if (missing.length) {
-        await notify(`⚠️ CHECKLIST DE ${stage.toUpperCase()} INCOMPLETO\n${label(service)}\nItens ausentes ou não conformes: ${missing.join(", ")}.`);
+        await notify(service, `CHECKLIST DE ${stage.toUpperCase()} INCOMPLETO`, `Itens ausentes ou não conformes: ${missing.join(", ")}.`);
       }
     }
   }
@@ -159,11 +163,11 @@ export async function processVuuptWebhook(body) {
     service.pickupDoneAt = pickupDone;
     services.set(service.id, service);
     if (!service.arrivedAt) {
-      await notify(`⚠️ CHEGADA NA COLETA NÃO REGISTRADA\n${label(service)}\nChecklist da coleta finalizado em ${formatTime(pickupDone)}.`);
+      await notify(service, "CHEGADA NA COLETA NÃO REGISTRADA", `Checklist da coleta finalizado em ${formatTime(pickupDone)}.`);
     } else {
       const wait = minutesBetween(service.arrivedAt, pickupDone);
       if (wait > config.unitWaitLimitMinutes) {
-        await notify(`🟠 ESPERA DA UNIDADE ACIMA DE 10 MIN\n${label(service)}\nChegada: ${formatTime(service.arrivedAt)}\nLiberação/coleta: ${formatTime(pickupDone)}\nEspera: ${wait} minutos.`);
+        await notify(service, "ESPERA DA UNIDADE ACIMA DE 10 MIN", `Chegada: ${formatTime(service.arrivedAt)}. Liberação/coleta: ${formatTime(pickupDone)}. Espera: ${wait} minutos.`);
       }
     }
   }
@@ -175,11 +179,11 @@ export async function processVuuptWebhook(body) {
     if (service.kind === "urgency" && service.createdAt) {
       const total = minutesBetween(service.createdAt, service.completedAt);
       if (total > config.urgencySlaMinutes) {
-        await notify(`🔴 URGÊNCIA CONCLUÍDA FORA DO SLA\n${label(service)}\nAcionamento: ${formatTime(service.createdAt)}\nEntrega: ${formatTime(service.completedAt)}\nTempo total: ${total} minutos.`);
+        await notify(service, "URGÊNCIA CONCLUÍDA FORA DO SLA", `Acionamento: ${formatTime(service.createdAt)}. Entrega: ${formatTime(service.completedAt)}. Tempo total: ${total} minutos.`);
       }
       const missingStages = ["coleta", "entrega"].filter((stage) => !service.checklists?.[stage]);
       if (missingStages.length) {
-        await notify(`⚠️ CHECKLIST OBRIGATÓRIO NÃO LOCALIZADO\n${label(service)}\nSem checklist registrado de: ${missingStages.join(" e ")}.`);
+        await notify(service, "CHECKLIST OBRIGATÓRIO NÃO LOCALIZADO", `Sem checklist registrado de: ${missingStages.join(" e ")}.`);
       }
     }
   }
