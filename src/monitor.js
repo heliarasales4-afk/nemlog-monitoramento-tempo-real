@@ -25,7 +25,7 @@ export function classify(service) {
   return service.routeId ? "route" : "unknown";
 }
 
-function clearTimers(id, kinds = ["arrival", "sla"]) {
+function clearTimers(id, kinds = ["arrival", "arrival-proof", "sla"]) {
   for (const kind of kinds) {
     const key = `${id}:${kind}`;
     const timer = timers.get(key);
@@ -106,7 +106,7 @@ export async function processVuuptWebhook(body) {
   if (isArrivalChecklist(service)) {
     service.arrivedAt = service.checklistFilledAt ?? new Date();
     services.set(service.id, service);
-    clearTimers(service.id, ["arrival"]);
+    clearTimers(service.id, ["arrival", "arrival-proof"]);
     if (service.kind === "urgency") {
       await notify(service, "CHEGADA À COLETA REGISTRADA", `Chegada registrada em ${formatTime(service.arrivedAt)}.`);
     }
@@ -144,7 +144,7 @@ export async function processVuuptWebhook(body) {
   if (/ServiceArrivedEvent$/.test(service.event) || service.arrivedAt) {
     service.arrivedAt ??= new Date();
     services.set(service.id, service);
-    clearTimers(service.id, ["arrival"]);
+    clearTimers(service.id, ["arrival", "arrival-proof"]);
   }
 
   if (service.kind === "urgency" && /ChecklistFilledEvent$/.test(service.event) && !isArrivalChecklist(service)) {
@@ -163,7 +163,16 @@ export async function processVuuptWebhook(body) {
     service.pickupDoneAt = pickupDone;
     services.set(service.id, service);
     if (!service.arrivedAt) {
-      await notify(service, "CHEGADA NA COLETA NÃO REGISTRADA", `Checklist da coleta finalizado em ${formatTime(pickupDone)}.`);
+      // O Vuupt pode entregar primeiro a finalização da coleta e, alguns
+      // segundos depois, a ocorrência "Chegada na Coleta". Aguarde dois
+      // minutos antes de considerar a chegada ausente para não gerar falso
+      // alerta quando os webhooks chegam fora de ordem.
+      schedule(service.id, "arrival-proof", new Date(Date.now() + 2 * 60000), async () => {
+        const current = services.get(service.id);
+        if (current && !current.arrivedAt) {
+          await notify(current, "CHEGADA NA COLETA NÃO REGISTRADA", `Checklist da coleta finalizado em ${formatTime(current.pickupDoneAt || pickupDone)}.`);
+        }
+      });
     } else {
       const wait = minutesBetween(service.arrivedAt, pickupDone);
       if (wait > config.unitWaitLimitMinutes) {

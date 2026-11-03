@@ -31,6 +31,21 @@ function checklistAnswers(payload) {
   }));
 }
 
+function checklistName(payload, entity) {
+  return text(first(
+    payload?.checklist_form?.name,
+    payload?.form?.name,
+    payload?.checklist?.form?.name,
+    payload?.checklist?.checklist_form?.name,
+    payload?.checklist?.name,
+    payload?.checklist_name,
+    entity?.checklist_form?.name,
+    entity?.form?.name,
+    entity?.checklist?.form?.name,
+    entity?.checklist?.name
+  ));
+}
+
 export function normalizeWebhook(body) {
   const event = text(body?.event);
   // The Vuupt delivery log shows the entity itself as the request body.
@@ -73,8 +88,14 @@ export function normalizeWebhook(body) {
     startedAt: dateValue(entity.started_at, payload.started_at),
     arrivedAt: dateValue(entity.arrived_at, payload.arrived_at),
     completedAt: dateValue(entity.completed_at, payload.completed_at),
-    checklistName: text(first(payload.checklist_form?.name, payload.form?.name)),
-    checklistFilledAt: dateValue(payload.filled_at, payload.created_at),
+    checklistName: checklistName(payload, entity),
+    checklistFilledAt: dateValue(
+      payload.filled_at,
+      payload.checklist?.filled_at,
+      entity?.filled_at,
+      entity?.checklist?.filled_at,
+      payload.created_at
+    ),
     checklistAnswers: checklistAnswers(payload),
     raw: body
   };

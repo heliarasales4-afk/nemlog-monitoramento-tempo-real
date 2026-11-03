@@ -44,6 +44,22 @@ test("normaliza checklist vinculado a um serviço", () => {
   assert.match(item.checklistName, /Coleta/);
 });
 
+test("normaliza formulário de chegada aninhado no checklist", () => {
+  const item = normalizeWebhook({
+    event: "Vuupt\\Events\\Checklist\\ChecklistFilledEvent",
+    payload: {
+      entity_id: 457,
+      checklist: {
+        filled_at: "2026-11-03 14:27:00",
+        form: { name: "Chegada na Coleta" }
+      },
+      entity: { id: 457, title: "Urgência -HAC/HJXXIII" }
+    }
+  });
+  assert.equal(item.checklistName, "Chegada na Coleta");
+  assert.equal(item.checklistFilledAt.toISOString(), "2026-11-03T14:27:00.000Z");
+});
+
 test("normaliza agente atribuído em formatos alternativos do Vuupt", () => {
   const item = normalizeWebhook({
     event: "Vuupt\\Events\\Service\\ServiceAssignedEvent",
