@@ -163,7 +163,6 @@ export async function processVuuptWebhook(body) {
   }
 
   if (service.kind === "urgency" && /ChecklistFilledEvent$/.test(service.event) && !isArrivalChecklist(service)) {
-    service.checklistEvidenceSeen = true;
     const stage = /coleta/i.test(service.checklistName) ? "coleta" : /entrega/i.test(service.checklistName) ? "entrega" : "outro";
     if (stage !== "outro") {
       service.checklists = { ...(service.checklists || {}), [stage]: true };
@@ -206,15 +205,10 @@ export async function processVuuptWebhook(body) {
       if (total > config.urgencySlaMinutes) {
         await notify(service, "URGÊNCIA CONCLUÍDA FORA DO SLA", `Acionamento: ${formatTime(service.createdAt)}. Entrega: ${formatTime(service.completedAt)}. Tempo total: ${total} minutos.`);
       }
-      // Se o processo do Render reiniciou, o histórico em memória pode estar
-      // incompleto. Não afirme que faltou checklist sem ter recebido ao menos
-      // um evento de checklist desse serviço durante a execução atual.
-      const missingStages = service.checklistEvidenceSeen
-        ? ["coleta", "entrega"].filter((stage) => !service.checklists?.[stage])
-        : [];
-      if (missingStages.length) {
-        await notify(service, "CHECKLIST OBRIGATÓRIO NÃO LOCALIZADO", `Sem checklist registrado de: ${missingStages.join(" e ")}.`);
-      }
+      // Não conclua que uma etapa está ausente usando apenas o histórico em
+      // memória. O Render pode reiniciar entre os webhooks de coleta e entrega.
+      // Itens explicitamente vazios continuam sendo tratados acima, no próprio
+      // evento ChecklistFilledEvent.
     }
   }
 
