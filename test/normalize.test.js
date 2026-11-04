@@ -71,3 +71,31 @@ test("normaliza agente atribuído em formatos alternativos do Vuupt", () => {
   });
   assert.equal(item.driver, "Heliara Sales Agente");
 });
+
+test("prioriza o ID do serviço quando a entidade é uma ocorrência", () => {
+  const item = normalizeWebhook({
+    event: "Vuupt\\Events\\Checklist\\ChecklistFilledEvent",
+    payload: {
+      entity_id: 9988,
+      entity: {
+        id: 4455,
+        service_id: 9988,
+        checklist_form: { name: "Chegada na Coleta" }
+      }
+    }
+  });
+
+  assert.equal(item.id, "9988");
+});
+
+test("extrai anexos usados como resposta de checklist", () => {
+  const item = normalizeWebhook({
+    event: "Vuupt\\Events\\Checklist\\ChecklistFilledEvent",
+    payload: {
+      service_id: 1234,
+      answers: [{ label: "Foto do lacre", attachments: [{ url: "https://exemplo/foto.jpg" }] }]
+    }
+  });
+
+  assert.equal(item.checklistAnswers[0].value.length, 1);
+});

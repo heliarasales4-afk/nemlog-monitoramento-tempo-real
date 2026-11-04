@@ -13,9 +13,20 @@ function containsAny(text, keywords) {
   return keywords.some((keyword) => text.includes(keyword.toUpperCase()));
 }
 
+function normalizedText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z0-9]+/g, " ")
+    .trim()
+    .toUpperCase();
+}
+
 function isArrivalChecklist(service) {
+  const name = normalizedText(service.checklistName);
   return /ChecklistFilledEvent$/.test(service.event)
-    && /chegada\s+(?:na|à|a)\s+coleta/i.test(service.checklistName || "");
+    && name.includes("CHEGADA")
+    && name.includes("COLETA");
 }
 
 export function classify(service) {
@@ -47,8 +58,12 @@ function missingChecklistItems(answers = []) {
   if (!answers.length) return [];
   return checklistRequirements.filter((required) => {
     const answer = answers.find((item) => containsAny(String(item.label || "").toUpperCase(), required.terms));
-    if (!answer) return true;
+    // A ausência da pergunta no webhook não comprova que ela esteja vazia no
+    // Vuupt. Só alerte quando o próprio item veio explicitamente sem resposta.
+    if (!answer) return false;
     const value = answer.value;
+    if (Array.isArray(value)) return value.length === 0;
+    if (typeof value === "object" && value !== null) return Object.keys(value).length === 0;
     if (value === false || value === 0 || value == null || value === "") return true;
     return /^(NAO|NÃO|NO|FALSE|INCOMPLETO)$/i.test(String(value).trim());
   }).map((item) => item.name);
@@ -82,7 +97,7 @@ async function notify(service, type, details) {
 
 function eventKey(body) {
   const normalized = normalizeWebhook(body);
-  return `${normalized.event}|${normalized.id}|${normalized.checklistFilledAt?.toISOString() || normalized.completedAt?.toISOString() || normalized.arrivedAt?.toISOString() || normalized.startedAt?.toISOString() || normalized.createdAt?.toISOString() || ""}`;
+  return `${normalized.event}|${normalized.id}|${normalized.checklistName}|${normalized.checklistFilledAt?.toISOString() || normalized.completedAt?.toISOString() || normalized.arrivedAt?.toISOString() || normalized.startedAt?.toISOString() || normalized.createdAt?.toISOString() || ""}`;
 }
 
 export async function processVuuptWebhook(body) {
@@ -148,6 +163,7 @@ export async function processVuuptWebhook(body) {
   }
 
   if (service.kind === "urgency" && /ChecklistFilledEvent$/.test(service.event) && !isArrivalChecklist(service)) {
+    service.checklistEvidenceSeen = true;
     const stage = /coleta/i.test(service.checklistName) ? "coleta" : /entrega/i.test(service.checklistName) ? "entrega" : "outro";
     if (stage !== "outro") {
       service.checklists = { ...(service.checklists || {}), [stage]: true };
@@ -190,7 +206,12 @@ export async function processVuuptWebhook(body) {
       if (total > config.urgencySlaMinutes) {
         await notify(service, "URGÊNCIA CONCLUÍDA FORA DO SLA", `Acionamento: ${formatTime(service.createdAt)}. Entrega: ${formatTime(service.completedAt)}. Tempo total: ${total} minutos.`);
       }
-      const missingStages = ["coleta", "entrega"].filter((stage) => !service.checklists?.[stage]);
+      // Se o processo do Render reiniciou, o histórico em memória pode estar
+      // incompleto. Não afirme que faltou checklist sem ter recebido ao menos
+      // um evento de checklist desse serviço durante a execução atual.
+      const missingStages = service.checklistEvidenceSeen
+        ? ["coleta", "entrega"].filter((stage) => !service.checklists?.[stage])
+        : [];
       if (missingStages.length) {
         await notify(service, "CHECKLIST OBRIGATÓRIO NÃO LOCALIZADO", `Sem checklist registrado de: ${missingStages.join(" e ")}.`);
       }

@@ -35,3 +35,19 @@ test("reconhece chegada em formato aninhado usado pelo Vuupt", async () => {
   const service = getService("987655");
   assert.equal(service.arrivedAt.toISOString(), "2026-11-03T14:27:00.000Z");
 });
+
+test("reconhece variações no nome da ocorrência de chegada", async () => {
+  await processVuuptWebhook({
+    event: "Vuupt\\Events\\Checklist\\ChecklistFilledEvent",
+    payload: {
+      entity_id: 987656,
+      filled_at: "2026-11-03 14:30:00",
+      checklist_form: { name: "Registrar chegada à unidade de coleta" },
+      entity: { id: 765432, service_id: 987656, title: "Urgência -HAC/HJXXIII" }
+    }
+  });
+
+  const service = getService("987656");
+  assert.equal(service.arrivedAt.toISOString(), "2026-11-03T14:30:00.000Z");
+  assert.equal(getService("765432"), undefined);
+});

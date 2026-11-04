@@ -27,7 +27,18 @@ function checklistAnswers(payload) {
   if (!Array.isArray(source)) return [];
   return source.map((item) => ({
     label: text(first(item?.label, item?.name, item?.question, item?.field?.name)),
-    value: first(item?.value, item?.answer, item?.response, item?.file, item?.url)
+    value: first(
+      item?.value,
+      item?.answer?.value,
+      item?.answer,
+      item?.response?.value,
+      item?.response,
+      item?.file,
+      item?.url,
+      item?.attachment,
+      item?.attachments,
+      item?.files
+    )
   }));
 }
 
@@ -52,42 +63,73 @@ export function normalizeWebhook(body) {
   // Keep supporting the documented envelope as well as this production shape.
   const payload = body?.payload ?? body ?? {};
   const entity = payload.entity ?? payload.service ?? payload.order ?? payload;
-  const agent = entity.agent ?? payload.agent ?? {};
-  const title = text(first(entity.title, entity.name, payload.title));
-  const code = text(first(entity.code, entity.tracking_code, payload.code));
-  const notes = text(first(entity.note, entity.notes, payload.note));
-  const origin = text(first(entity.origin?.name, entity.sender?.name, entity.customer?.name, payload.origin));
-  const destination = text(first(entity.destination?.name, entity.contact?.name, payload.destination, entity.address));
+  // Em eventos de checklist, `entity.id` pode ser o ID da ocorrência, não o
+  // ID do serviço. O serviço relacionado costuma vir em entity_id/service_id
+  // ou em um objeto service/order aninhado. Use-o como identidade principal.
+  const serviceEntity = first(
+    payload.service,
+    payload.order,
+    payload.checklist?.service,
+    payload.checklist?.order,
+    entity.service,
+    entity.order,
+    entity
+  ) ?? {};
+  const agent = serviceEntity.agent ?? entity.agent ?? payload.agent ?? {};
+  const title = text(first(serviceEntity.title, serviceEntity.name, entity.title, entity.name, payload.title));
+  const code = text(first(serviceEntity.code, serviceEntity.tracking_code, entity.code, entity.tracking_code, payload.code));
+  const notes = text(first(serviceEntity.note, serviceEntity.notes, entity.note, entity.notes, payload.note));
+  const origin = text(first(serviceEntity.origin?.name, serviceEntity.sender?.name, serviceEntity.customer?.name, entity.origin?.name, payload.origin));
+  const destination = text(first(serviceEntity.destination?.name, serviceEntity.contact?.name, entity.destination?.name, payload.destination, serviceEntity.address, entity.address));
 
   return {
     event,
-    id: String(first(entity.id, payload.entity_id, payload.service_id, payload.id, "")),
+    id: String(first(
+      payload.entity_id,
+      payload.service_id,
+      payload.order_id,
+      payload.checklist?.service_id,
+      payload.checklist?.order_id,
+      entity.service_id,
+      entity.order_id,
+      entity.service?.id,
+      entity.order?.id,
+      serviceEntity.id,
+      entity.id,
+      payload.id,
+      ""
+    )),
     title,
     code,
     notes,
     driver: text(first(
       agent.name,
+      serviceEntity.agent_name,
       entity.agent_name,
       payload.agent?.name,
       payload.agent_name,
+      serviceEntity.assigned_agent?.name,
       entity.assigned_agent?.name,
       payload.assigned_agent?.name,
+      serviceEntity.assignee?.name,
       entity.assignee?.name,
       payload.assignee?.name,
+      serviceEntity.driver?.name,
       entity.driver?.name,
       payload.driver?.name,
+      serviceEntity.driver_name,
       entity.driver_name,
       payload.driver_name
     )),
     origin,
     destination,
-    routeId: first(entity.route_id, payload.route_id),
-    status: text(first(entity.status, payload.status)),
-    statusDone: text(first(entity.status_done, payload.status_done)),
-    createdAt: dateValue(entity.created_at, payload.created_at),
-    startedAt: dateValue(entity.started_at, payload.started_at),
-    arrivedAt: dateValue(entity.arrived_at, payload.arrived_at),
-    completedAt: dateValue(entity.completed_at, payload.completed_at),
+    routeId: first(serviceEntity.route_id, entity.route_id, payload.route_id),
+    status: text(first(serviceEntity.status, entity.status, payload.status)),
+    statusDone: text(first(serviceEntity.status_done, entity.status_done, payload.status_done)),
+    createdAt: dateValue(serviceEntity.created_at, entity.created_at, payload.created_at),
+    startedAt: dateValue(serviceEntity.started_at, entity.started_at, payload.started_at),
+    arrivedAt: dateValue(serviceEntity.arrived_at, entity.arrived_at, payload.arrived_at),
+    completedAt: dateValue(serviceEntity.completed_at, entity.completed_at, payload.completed_at),
     checklistName: checklistName(payload, entity),
     checklistFilledAt: dateValue(
       payload.filled_at,
