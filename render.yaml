@@ -24,5 +24,5 @@ services:
       - key: UNIT_WAIT_LIMIT_MINUTES
         value: 10
       - key: URGENCY_ARRIVAL_LIMIT_MINUTES
-        value: 40
+        value: 60
 

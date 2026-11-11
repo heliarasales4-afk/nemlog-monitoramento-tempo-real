@@ -5,12 +5,12 @@ Servidor para receber webhooks do Vuupt e enviar alertas operacionais pelo Whats
 ## Alertas iniciais
 
 - urgência acionada;
-- alerta quando o condutor não registrar chegada à coleta em 40 minutos;
+- alerta quando o condutor não registrar chegada à coleta em 60 minutos;
 - SLA de 60 minutos atingido;
 - conclusão da urgência fora do SLA;
 - chegada na coleta não registrada;
 - espera da unidade acima de 10 minutos;
-- checklist incompleto de coleta ou entrega;
+- os checklists continuam sendo usados para identificar chegada, fim da coleta e espera da unidade, mas não geram alertas de itens incompletos;
 - serviços com “sem material” são desconsiderados.
 
 ## Webhook do Vuupt

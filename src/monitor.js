@@ -45,30 +45,6 @@ function clearTimers(id, kinds = ["arrival", "arrival-proof", "sla"]) {
   }
 }
 
-const checklistRequirements = [
-  { name: "foto do termômetro", terms: ["TERMOMETRO", "TERMÔMETRO"] },
-  { name: "foto do lacre", terms: ["LACRE"] },
-  { name: "caixa higienizada", terms: ["HIGIENIZ"] },
-  { name: "foto do rótulo", terms: ["ROTULO", "RÓTULO"] },
-  { name: "assinatura", terms: ["ASSINATURA"] },
-  { name: "temperatura registrada", terms: ["TEMPERATURA"] }
-];
-
-function missingChecklistItems(answers = []) {
-  if (!answers.length) return [];
-  return checklistRequirements.filter((required) => {
-    const answer = answers.find((item) => containsAny(String(item.label || "").toUpperCase(), required.terms));
-    // A ausência da pergunta no webhook não comprova que ela esteja vazia no
-    // Vuupt. Só alerte quando o próprio item veio explicitamente sem resposta.
-    if (!answer) return false;
-    const value = answer.value;
-    if (Array.isArray(value)) return value.length === 0;
-    if (typeof value === "object" && value !== null) return Object.keys(value).length === 0;
-    if (value === false || value === 0 || value == null || value === "") return true;
-    return /^(NAO|NÃO|NO|FALSE|INCOMPLETO)$/i.test(String(value).trim());
-  }).map((item) => item.name);
-}
-
 function schedule(id, kind, when, fn) {
   const delay = when.getTime() - Date.now();
   if (delay <= 0) return void fn();
@@ -117,7 +93,7 @@ export async function processVuuptWebhook(body) {
 
   // No aplicativo do Vuupt, o motorista informa a chegada por meio da
   // ocorrência/formulário "Chegada na Coleta". Esse preenchimento é o registro
-  // oficial de chegada e precisa cancelar imediatamente o alerta de 40 minutos.
+  // oficial de chegada e precisa cancelar imediatamente o alerta de atraso.
   if (isArrivalChecklist(service)) {
     service.arrivedAt = service.checklistFilledAt ?? new Date();
     services.set(service.id, service);
@@ -147,7 +123,7 @@ export async function processVuuptWebhook(body) {
     schedule(service.id, "arrival", new Date(start.getTime() + config.urgencyArrivalLimitMinutes * 60000), async () => {
       const current = services.get(service.id);
       if (current && !current.arrivedAt && !current.completedAt) {
-        await notify(current, "CONDUTOR NÃO CHEGOU À COLETA EM 40 MIN", `Acionamento: ${formatTime(current.createdAt)}. Após ${config.urgencyArrivalLimitMinutes} minutos, a chegada à unidade ainda não foi registrada.`);
+        await notify(current, `CONDUTOR NÃO CHEGOU À COLETA EM ${config.urgencyArrivalLimitMinutes} MIN`, `Acionamento: ${formatTime(current.createdAt)}. Após ${config.urgencyArrivalLimitMinutes} minutos, a chegada à unidade ainda não foi registrada.`);
       }
     });
     schedule(service.id, "sla", new Date(start.getTime() + config.urgencySlaMinutes * 60000), async () => {
@@ -166,10 +142,10 @@ export async function processVuuptWebhook(body) {
     const stage = /coleta/i.test(service.checklistName) ? "coleta" : /entrega/i.test(service.checklistName) ? "entrega" : "outro";
     if (stage !== "outro") {
       service.checklists = { ...(service.checklists || {}), [stage]: true };
-      const missing = missingChecklistItems(service.checklistAnswers);
-      if (missing.length) {
-        await notify(service, `CHECKLIST DE ${stage.toUpperCase()} INCOMPLETO`, `Itens ausentes ou não conformes: ${missing.join(", ")}.`);
-      }
+      // Os webhooks do Vuupt nem sempre enviam todas as respostas e anexos do
+      // checklist. Para evitar falsos positivos, o checklist continua servindo
+      // para registrar os marcos operacionais, mas não gera alerta de itens
+      // incompletos no WhatsApp.
     }
   }
 
