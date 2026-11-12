@@ -58,6 +58,13 @@ function schedule(id, kind, when, fn) {
 }
 
 async function notify(service, type, details) {
+  // Proteção final: os webhooks do Vuupt podem chegar incompletos ou fora de
+  // ordem. Nunca envie ao WhatsApp alertas de checklist ausente/incompleto,
+  // pois essa validação não é confiável somente com o conteúdo do webhook.
+  if (/CHECKLIST|INCOMPLETO|NÃO LOCALIZADO|NAO LOCALIZADO/i.test(type)) {
+    console.log(`Alerta de checklist ignorado para o serviço ${service?.id || "desconhecido"}: ${type}`);
+    return;
+  }
   try {
     const route = service.title || [service.origin, service.destination].filter(Boolean).join(" → ") || service.code || `serviço ${service.id}`;
     await sendWhatsAppTemplate("alerta_operacional_urgencia", [
